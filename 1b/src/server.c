@@ -268,23 +268,26 @@ static void init_sockets(const struct opts *const options)
 	if(listen(sockfd, 5) != 0)
 		bail_out(EXIT_FAILURE, "listen");
 
+/*
 	struct pollfd sockfd_poll = {
 		.fd = sockfd,
 		.events = POLLIN,
 		.revents = 0
 	};
 
-	/* wait for incoming connections */
 	int pollr;
 	do{
-		pollr = poll(&sockfd_poll, 1, 60000);
+		pollr = poll(&sockfd_poll, 1, 500);
 		
 		if(pollr < 0)
 			bail_out(EXIT_FAILURE, "poll");	
 
-	}while(pollr == 0);
+	}while(pollr == 0 && quit == 0);
+*/
 
 	connfd = accept(sockfd, NULL, NULL);
+	if(connfd < 0)
+		bail_out(EXIT_FAILURE, "accept");
 }
 
 /**

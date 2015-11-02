@@ -5,6 +5,8 @@
 CC=gcc
 CFLAGS=-O3 -std=c99 -pedantic -Wall -c -g -D_XOPEN_SOURCE=500 -D_POSIX_C_SOURCE=200112L 
 LFLAGS=-lm
+DOXYFILE=./Doxyfile
+DOXY_TRASH=html latex doxygen_sqlite3.db
 
 # all = release target
 all: server client
@@ -24,6 +26,10 @@ client:	client.o client-ai.o
 
 clean:
 	rm -f *.o server client
+	rm -Rf $(DOXY_TRASH)
 
-.PHONY: all debug clean
+docs:
+	doxygen $(DOXYFILE)
+
+.PHONY: all docs debug clean
 

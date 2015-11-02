@@ -24,11 +24,11 @@ int flag_absolute = 0, flag_integer = 0;
 
 void error(const char *s)
 {
-	printf("%s error: %s\n", progname, s);
+	(void)printf("%s error: %s\n", progname, s);
 	exit(1);
 }
 
-/*! RPN stack structure */
+/*! \brief RPN stack structure */
 static struct{
 	double buf[STACKSIZE];
 	int i;
@@ -178,15 +178,15 @@ void parse(FILE *inputf)
 		result = fabs(result);
 	
 	if(flag_integer)
-		printf("%d\n", (int) result);
+		(void)printf("%d\n", (int) result);
 	else
-		printf("%f\n", result);
+		(void)printf("%f\n", result);
 }
 
 /*! \brief This function prints the synopsis of the program */
-void usage(const char *prog)
+void usage(void)
 {
-	fprintf(stderr,"Usage: %s [-i] [-a] [file1 [file2 ...]] \n",prog);
+	(void)fprintf(stderr,"Usage: %s [-i] [-a] [file1 [file2 ...]] \n",progname);
 }
 
 /*!
@@ -208,7 +208,7 @@ int main(int argc, char **argv)
 			flag_absolute = 1;
 			break;
 		default:
-			usage(progname);
+			usage();
 			return 1;
 		}
 	}
@@ -221,7 +221,7 @@ int main(int argc, char **argv)
 		for(i = optind; i < argc; i++){
 			f = fopen(argv[i], "r");
 			if(f == NULL){
-				usage(argv[0]);
+				usage();
 				return 1;
 			}
 

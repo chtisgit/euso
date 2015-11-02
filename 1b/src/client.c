@@ -28,8 +28,13 @@
 #include <poll.h>
 #include <netdb.h>
 
+/*! \brief atomic used by signal handler to indicate incoming signals */
 volatile sig_atomic_t quit = 0;
+
+/*! \brief program name (is set to argv[0] by main) */
 static const char *progname;
+
+/*! \brief socket which is used for communication with the server */
 static int sockfd = -1;
 
 void deinit(void)
@@ -39,6 +44,11 @@ void deinit(void)
 	ai_deinit();
 }
 
+/*!
+	\brief terminate program on program error
+	\param exitcode exit code
+	\param fmt format string
+*/
 static void error(int exitcode, const char *fmt, ...)
 {
 	va_list ap;
@@ -51,7 +61,6 @@ static void error(int exitcode, const char *fmt, ...)
 		va_end(ap);
 	}
 
-	deinit();
 	exit(exitcode);
 }
 
@@ -72,10 +81,10 @@ void establish_connection(const char *s_name, const char *s_port)
 
 	const int port = strtol(s_port, NULL, 10);
 	if(port <= 0 || port >= 65536)
-		error(EC_DEFAULT, "Use a valid TCP/IP port range (1-65535)");
+		error(EC_FAILURE, "Use a valid TCP/IP port range (1-65535)");
 
 	if(getaddrinfo(s_name, s_port, &hint, &res) != 0)
-		error(EC_DEFAULT, "error: could not resolve hostname %s", s_name);
+		error(EC_FAILURE, "error: could not resolve hostname %s", s_name);
 
 	const struct sockaddr_in s_addr = *((struct sockaddr_in*) res->ai_addr);
 	const int addrlen = res->ai_addrlen;
@@ -85,10 +94,10 @@ void establish_connection(const char *s_name, const char *s_port)
 	sockfd = socket(AF_INET, SOCK_STREAM, protocol);
 
 	if(sockfd == -1)
-		error(EC_DEFAULT, "error: could not create socket");
+		error(EC_FAILURE, "error: could not create socket");
 
 	if(connect(sockfd, (struct sockaddr*) &s_addr, addrlen) != 0)
-		error(EC_DEFAULT, "error: could not connect to server");
+		error(EC_FAILURE, "error: could not connect to server");
 
 }
 
@@ -181,27 +190,26 @@ int main(int argc, char **argv)
 
 	while ((opt = getopt(argc, argv, "")) != -1) {
 		usage();
-		return 1;
+		return EC_FAILURE;
 	}
 	i = optind;
 
 	/* check if exactly 2 parameters given */
 	if(argc - i != 2){
 		usage();
-		return 1;
+		return EC_FAILURE;
 	}
 
 	if(ai_init() == 0)
-		return 1;
+		return EC_FAILURE;
 
 	establish_connection(argv[i], argv[i+1]);
+	atexit(deinit);
 	
 	const int rounds = play();
 
-	deinit();
-
 	(void)printf("Runden: %d\n", rounds);
 
-	return 0;
+	return EC_OKAY;
 }
 

@@ -28,7 +28,8 @@
 #include <stdint.h>
 
 /* program specific Exit Codes */
-#define EC_DEFAULT	1
+#define EC_OKAY		0
+#define EC_FAILURE	1
 #define EC_PARITY	2
 #define EC_GAMELOST	3
 #define EC_BOTH		4
@@ -39,12 +40,6 @@
 /* Keep in sync! */
 enum Color { beige, darkblue, green, orange, red, black, violet, white };
 
-/*!
-	\brief terminate program on program error
-	\param exitcode exit code
-	\param fmt format string
-*/
-static void error(int exitcode, const char *fmt, ...);
 
 /*!
 	\brief frees all allocated ressources
@@ -82,7 +77,7 @@ void establish_connection(const char *s_name, const char *s_port);
 		a 16 byte unsigned integer is returned, which contains
 		the message (all the colors + parity bit) to the server.
 */
-uint16_t compose_msg(enum Color tip[SLOTS])
+uint16_t compose_msg(enum Color tip[SLOTS]);
 
 /*!
 	\brief calculates the odd parity for a uint16_t
@@ -133,6 +128,9 @@ int play(void);
 	\return
 		0 .. if the game was one
 		1 .. in case of a syntax error in command args
+		2 .. if a message sent by the client got the parity bit wrong
+		3 .. if the client lost the game
+		4 .. if parity bit is wrong and client lost the game
 	\details
 		main() sets up the signal handler signal_stopserver(),
 		parses the command line options, initializes the AI,
@@ -141,6 +139,6 @@ int play(void);
 		(if no function called error())
 
 */
-int main(int, char**);
+int main(int argc, char** argv);
 
 #endif

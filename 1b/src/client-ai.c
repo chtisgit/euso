@@ -24,7 +24,7 @@ static int all_size = 0;
 static int next_guess = FIRST_GUESS;
 
 /*! calculates COLORS to the power of SLOTS */
-inline const int calc_all_size()
+inline const int calc_all_size(void)
 {
 	int size = COLORS;
 	for(int i = 1; i <= SLOTS-1; i++){
