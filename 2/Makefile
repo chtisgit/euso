@@ -4,7 +4,8 @@
 
 CC=gcc
 CFLAGS=-O3 -std=c99 -pedantic -Wall -c -g -D_XOPEN_SOURCE=500 -D_POSIX_C_SOURCE=200112L 
-LFLAGS=-lm
+LFLAGS=-lcrypt
+OBJS=encr.o pidlist.o
 DOXYFILE=./Doxyfile
 DOXY_TRASH=html latex doxygen_sqlite3.db
 
@@ -13,10 +14,10 @@ all: encr
 
 # debug -> debug mode 
 debug: CFLAGS+= -DENDEBUG -g 
-debug: encr
+debug: clean encr
  
-encr: encr.o
-	$(CC) $(LFLAGS) encr.o -o encr
+encr: $(OBJS)
+	$(CC) $(LFLAGS) $(OBJS) -o encr
 
 %.o: %.c
 	$(CC) $(CFLAGS) $^

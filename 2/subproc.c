@@ -2,23 +2,23 @@
 
 #include <stdlib.h>
 
-int subproc_create(struct SubProc **dst_list, const char *data)
+struct SubProc* subproc_append(struct SubProc **dst_list, const char *data)
 {
 	struct SubProc *sp = malloc( sizeof(SubProc) );
 
 	if(sp == NULL)
-		return 0;
+		return NULL;
 
 	sp->data = malloc( strlen(data) );
 	if(sp->data == NULL){
 		(void)free(sp);
-		return 0;
+		return NULL;
 	}
 	strcpy(sp->data, data);
 	if(pipe(sp->pipe) == -1){
 		(void)free(sp->data);
 		(void)free(sp);
-		return 0;
+		return NULL;
 	}
 
 	if(*dst_list == NULL){
@@ -28,7 +28,7 @@ int subproc_create(struct SubProc **dst_list, const char *data)
 		sp->next = *dst_list;
 		*dst_list = sp;
 	}
-	return 1;
+	return sp;
 }
 
 void subproc_destroy(struct SubProc *sp)
