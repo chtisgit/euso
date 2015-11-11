@@ -29,6 +29,7 @@ int pidlist_add(struct PidList *pl, pid_t pid)
 		pid_t *n = realloc(pl->pids, (pl->maxlen+plus) * sizeof(*n));
 		if(n == NULL)
 			return 0;
+		
 		pl->pids = n;
 		pl->maxlen += plus;
 	}

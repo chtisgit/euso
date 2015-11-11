@@ -54,6 +54,10 @@ do
 					c=$a1$a2$a3$a4$a5$a6
 					i=$((i+1))
 
+					if [ $i -eq 200 ]; then
+						exit 0
+					fi
+
 					if [ ! -z "$start" ]; then
 						if [ "$start" != "$c" ]; then
 							continue

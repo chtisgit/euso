@@ -24,6 +24,8 @@ void check_pidlist(void)
 	int status;
 	struct PidList *pl = pidlist;
 
+	fprintf(stderr, "pidlist dirty\n");
+
 	for(int i = 0; i < pidlist_len(pl); i++){
 		const pid_t current = pidlist_get(pl, i);
 		const pid_t tmp = waitpid(current, &status, WNOHANG);
@@ -69,7 +71,7 @@ char* read_from_stdin(void)
 		
 		s[len++] = getchar();
 		if(s[len-1] == EOF)
-			break;
+			return NULL;
 #if 0
 		check = fgets(s+len, maxlen, stdin);
 		if(pidlist_dirty != 0)
@@ -83,9 +85,10 @@ char* read_from_stdin(void)
 		if(s[len-1] != '\n' && len == maxlen){
 			char *n = realloc(s, maxlen += 20);
 			if(n == NULL){
-
+				free(s);
+				error("realloc");
 			}
-			s = realloc(s, maxlen += 20);
+			s = n;
 		}
 
 	}while(s[len-1] != '\n');
@@ -121,8 +124,9 @@ int setup_signal_handler(void)
 
 void cleanup(void)
 {
-	if(pidlist != NULL && pidlist_len(pidlist) > 0){
-		wait_pidlist();
+	if(pidlist != NULL){
+		if(pidlist_len(pidlist) > 0)
+			wait_pidlist();
 		pidlist_delete(pidlist);
 	}
 }
@@ -151,12 +155,17 @@ int main(int argc, char **argv)
 
 		const pid_t child = fork();
 
-		if(child == -1)
+		switch(child){
+		case -1:
+			free(pw);
 			error("fork");
-		else if(child == 0)
+			break;
+		case 0:
 			compute_pw(pw);
-		else
+			break;
+		default:
 			pidlist_add(pidlist, child);
+		}
 
 	}
 
