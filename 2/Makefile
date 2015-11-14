@@ -13,6 +13,7 @@ DOXY_TRASH=html latex doxygen_sqlite3.db
 all: release
 
 release: CFLAGS+= -O3
+release: encr
 
 # debug -> debug mode 
 debug: CFLAGS+= -DENDEBUG -g -O0

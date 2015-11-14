@@ -13,45 +13,42 @@
 volatile sig_atomic_t pidlist_dirty = 0;
 struct PidList *pidlist = NULL;
 
+void error(const char *f)
+{
+	(void)fprintf(stderr, "error in function %s\n", f);
+	exit(EXIT_FAILURE);
+}
+
 void signal_child(int s)
 {
 	assert(pidlist != NULL);
 	pidlist_dirty = 1;
 }
 
-void check_pidlist(void)
+int check_pidlist(void)
 {
 	int status;
 	struct PidList *pl = pidlist;
 
-	fprintf(stderr, "pidlist dirty\n");
-
 	for(int i = 0; i < pidlist_len(pl); i++){
 		const pid_t current = pidlist_get(pl, i);
-		const pid_t tmp = waitpid(current, &status, WNOHANG);
-		if(tmp == current){
-			//DEBUG(fprintf(stderr,"received exit status from pid %d : %d\n", current, status));
+		pid_t id;
+		do
+			id = waitpid(current, &status, WNOHANG|WUNTRACED);
+		while(id == -1 && errno == EINTR);
+
+		if(id == -1)
+			DEBUG(fprintf(stderr,"error waitpid errno %d\n",errno));
+
+		if(id == current){
+			DEBUG(fprintf(stderr,"received exit status from pid %d : %d\n", current, status));
 			pidlist_remove(pl, current);
 			i--;
 		}
 	}
 	pidlist_dirty = 0;
-}
-void wait_pidlist(void)
-{
-	int status;
-	struct PidList *pl = pidlist;
 
-	for(int i = 0; i < pidlist_len(pl); i++){
-		const pid_t current = pidlist_get(pl, i);
-		(void)waitpid(current, &status, 0);
-	}
-}
-
-void error(const char *f)
-{
-	(void)fprintf(stderr, "error in function %s\n", f);
-	exit(EXIT_FAILURE);
+	return pidlist_len(pl);
 }
 
 void usage(void)
@@ -68,20 +65,11 @@ char* read_from_stdin(void)
 		return NULL;
 
 	do{
-		
 		s[len++] = getchar();
+
 		if(s[len-1] == EOF)
 			return NULL;
-#if 0
-		check = fgets(s+len, maxlen, stdin);
-		if(pidlist_dirty != 0)
-			check_pidlist();
 
-		if(check == NULL)
-			return NULL;
-		
-		len = strlen(s);
-#endif
 		if(s[len-1] != '\n' && len == maxlen){
 			char *n = realloc(s, maxlen += 20);
 			if(n == NULL){
@@ -92,21 +80,21 @@ char* read_from_stdin(void)
 		}
 
 	}while(s[len-1] != '\n');
+	
+	fflush(stdin);
 	s[len-1] = '\0';
-	fprintf(stderr, "%s\n", s);
 
 	return s;
 }
 
-void compute_pw(const char *pw)
+void compute_pw(const char *pw, const int sleep_time)
 {
 	const char *result = crypt(pw, "aC");
-	
-	srand(time(NULL));
-	sleep( rand() % 4 + 2 );
+
+	sleep( sleep_time );
 
 	printf("encr: %s -> %s\n", pw, result);
-	free((char*)pw);
+	free((void*)pw);
 
 	exit(EXIT_SUCCESS);
 }
@@ -125,8 +113,9 @@ int setup_signal_handler(void)
 void cleanup(void)
 {
 	if(pidlist != NULL){
-		if(pidlist_len(pidlist) > 0)
-			wait_pidlist();
+		while(check_pidlist() > 0)
+			sleep(1);
+
 		pidlist_delete(pidlist);
 	}
 }
@@ -146,6 +135,7 @@ int main(int argc, char **argv)
 	if(setup_signal_handler() == 0)
 		error("sigaction");
 
+	srand(time(NULL));
 	for(;;){
 		const char *pw = read_from_stdin();
 		if(pw == NULL)
@@ -153,16 +143,17 @@ int main(int argc, char **argv)
 
 		check_pidlist();
 
+		const int sleep_time = rand() % 4 + 2;
 		const pid_t child = fork();
 
 		switch(child){
 		case -1:
-			free(pw);
+			free((void*)pw);
 			error("fork");
-			break;
+			assert(0);
 		case 0:
-			compute_pw(pw);
-			break;
+			compute_pw(pw, sleep_time);
+			assert(0);
 		default:
 			pidlist_add(pidlist, child);
 		}
