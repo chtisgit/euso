@@ -43,7 +43,7 @@ void pidlist_remove(struct PidList *pl, pid_t pid)
 {
 	for(int i = 0; i < pl->len; i++){
 		if(pl->pids[i] == pid){
-			const int len = pl->len - i - 1;
+			const int len = (pl->len - i - 1) * sizeof(*pl->pids);
 			if(len) memmove(&pl->pids[i], &pl->pids[i+1], len);
 
 			pl->len--;
