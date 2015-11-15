@@ -5,7 +5,7 @@
 CC=clang
 CFLAGS=-std=c99 -pedantic -Wall -c -g -D_XOPEN_SOURCE=500 -D_POSIX_C_SOURCE=200112L 
 LFLAGS=-lcrypt
-OBJS=encr.o pidlist.o
+OBJS=encr.o childlist.o
 DOXYFILE=./Doxyfile
 DOXY_TRASH=html latex doxygen_sqlite3.db
 

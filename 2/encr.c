@@ -1,5 +1,5 @@
 #include "encr.h"
-#include "pidlist.h"
+#include "childlist.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -10,45 +10,36 @@
 #include <unistd.h>
 #include <sys/wait.h>
 
-volatile sig_atomic_t pidlist_dirty = 0;
-struct PidList *pidlist = NULL;
+struct ChildList *childlist = NULL;
+
+void cleanup(void);
 
 void error(const char *f)
 {
 	(void)fprintf(stderr, "error in function %s\n", f);
+	cleanup();
 	exit(EXIT_FAILURE);
 }
 
 void signal_child(int s)
 {
-	assert(pidlist != NULL);
-	pidlist_dirty = 1;
+	int status;
+	pid_t exited = wait(&status);
+	childlist_mark_inactive(childlist, exited, status);
 }
 
-int check_pidlist(void)
+int check_childlist(void)
 {
-	int status;
-	struct PidList *pl = pidlist;
-
-	for(int i = 0; i < pidlist_len(pl); i++){
-		const pid_t current = pidlist_get(pl, i);
-		pid_t id;
-		do
-			id = waitpid(current, &status, WNOHANG|WUNTRACED);
-		while(id == -1 && errno == EINTR);
-
-		if(id == -1)
-			DEBUG(fprintf(stderr,"error waitpid errno %d\n",errno));
-
-		if(id == current){
-			DEBUG(fprintf(stderr,"received exit status from pid %d : %d\n", current, status));
-			pidlist_remove(pl, current);
-			i--;
+	for(int i = 0; i < childlist_len(childlist); i++){
+		const struct ChildInfo *const info = childlist_get_ro(childlist, i);
+		
+		if(info->active == 0){
+			DEBUG(fprintf(stderr, "pid %d inactive. removing.\n",info->pid));
+			childlist_remove(childlist, i--);
 		}
 	}
-	pidlist_dirty = 0;
 
-	return pidlist_len(pl);
+	return childlist_len(childlist);
 }
 
 void usage(void)
@@ -67,8 +58,11 @@ char* read_from_stdin(void)
 	do{
 		s[len++] = getchar();
 
-		if(s[len-1] == EOF)
-			return NULL;
+		if(s[len-1] == EOF){
+			free(s);
+			s = NULL;
+			break;
+		}
 
 		if(s[len-1] != '\n' && len == maxlen){
 			char *n = realloc(s, maxlen += 20);
@@ -81,8 +75,7 @@ char* read_from_stdin(void)
 
 	}while(s[len-1] != '\n');
 	
-	fflush(stdin);
-	s[len-1] = '\0';
+	if(s != NULL) s[len-1] = '\0';
 
 	return s;
 }
@@ -112,11 +105,14 @@ int setup_signal_handler(void)
 
 void cleanup(void)
 {
-	if(pidlist != NULL){
-		while(check_pidlist() > 0)
+	if(childlist != NULL){
+		while(check_childlist() > 0){
 			sleep(1);
+			DEBUG(fprintf(stderr,"childlist_len: %d\n",childlist_len(childlist)));
+		}
 
-		pidlist_delete(pidlist);
+		childlist_delete(childlist);
+		childlist = NULL;
 	}
 }
 
@@ -128,37 +124,39 @@ int main(int argc, char **argv)
 	}
 	DEBUG(fprintf(stderr, "--- DEBUG MODE ---\n"));
 
-	pidlist = pidlist_new(30);
-
-	atexit(cleanup);
+	childlist = childlist_new(30);
 
 	if(setup_signal_handler() == 0)
 		error("sigaction");
 
 	srand(time(NULL));
 	for(;;){
-		const char *pw = read_from_stdin();
-		if(pw == NULL)
+		struct ChildInfo child;
+	
+		child.active = 1;
+		child.pw = read_from_stdin();
+		if(child.pw == NULL)
 			break;
 
-		check_pidlist();
-
+		check_childlist();
+		
 		const int sleep_time = rand() % 4 + 2;
-		const pid_t child = fork();
+		child.pid = fork();
 
-		switch(child){
+		switch(child.pid){
 		case -1:
-			free((void*)pw);
+			free(child.pw);
 			error("fork");
 			assert(0);
 		case 0:
-			compute_pw(pw, sleep_time);
+			compute_pw(child.pw, sleep_time);
 			assert(0);
 		default:
-			pidlist_add(pidlist, child);
+			childlist_add(childlist, &child);
 		}
 
 	}
 
+	cleanup();
 	return EXIT_SUCCESS;
 }
