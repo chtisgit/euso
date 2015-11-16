@@ -52,20 +52,26 @@ int childlist_add(struct ChildList *pl, const struct ChildInfo *const info)
 	return 1;
 }
 
+/*! \brief	frees resources in a ChildInfo struct */
+static void childlist_elem_destroy(const struct ChildInfo *const info)
+{
+	free(info->pw);
+}
+
 void childlist_remove(struct ChildList *pl, size_t pos)
 {
-	const int MAXIMUM_SPARE = pl->maxlen/2;
-
 	assert(0 <= pos && pos < pl->len);
 
 	const size_t len = (pl->len - pos - 1) * sizeof(*pl->buf);
 	
-	if(len) memmove(&pl->buf[pos], &pl->buf[pos+1], len);
+	childlist_elem_destroy(&pl->buf[pos]);
+	if(len > 0)
+		memmove(&pl->buf[pos], &pl->buf[pos+1], len);
 	pl->len--;
 	
+	const int MAXIMUM_SPARE = pl->maxlen/2;
 	if(pl->len < MAXIMUM_SPARE/2){
 		void *n = realloc(pl->buf, sizeof(*pl->buf) * MAXIMUM_SPARE);
-		
 		if(n != NULL){
 			pl->maxlen = MAXIMUM_SPARE;
 			pl->buf = n;
@@ -99,6 +105,8 @@ void childlist_mark_inactive(struct ChildList *pl, pid_t pid, int status)
 
 void childlist_delete(struct ChildList *pl)
 {
+	for(int i = 0; i < pl->len; i++)
+		childlist_elem_destroy(&pl->buf[i]);
 	free(pl->buf);
 	free(pl);
 }

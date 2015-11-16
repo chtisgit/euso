@@ -111,6 +111,8 @@ void compute_pw(const char *pw, const int sleep_time)
 	printf("encr: %s -> %s\n", pw, result);
 	free((void*)pw);
 
+	childlist_delete(childlist);
+
 	exit(EXIT_SUCCESS);
 }
 
