@@ -1,3 +1,14 @@
+/*!
+	\file	encr.h
+	\author	Christian Fiedler <e1363562@student.tuwien.ac.at>
+	\date	16.11.2015
+
+	\brief	header file for main file encr.c
+
+	\details
+		this program hashes passwords
+*/
+
 #ifndef __ENCR_H__
 #define __ENCR_H__
 

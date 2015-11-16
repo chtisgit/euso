@@ -1,3 +1,16 @@
+/*!
+	\file	childlist.c
+	\author	Christian Fiedler <e1363562@student.tuwien.ac.at>
+	\date	16.11.2015
+
+	\brief	implementation of functions that allow managing
+		of lists of ChildInfo structures (ChildLists)
+
+	\details
+		this module is a library that provides functions
+		to save information about child processes
+*/
+
 #include "encr.h"
 #include "childlist.h"
 #include <stdlib.h>
@@ -41,9 +54,24 @@ int childlist_add(struct ChildList *pl, const struct ChildInfo *const info)
 
 void childlist_remove(struct ChildList *pl, size_t pos)
 {
+	const int MAXIMUM_SPARE = pl->maxlen/2;
+
+	assert(0 <= pos && pos < pl->len);
+
 	const size_t len = (pl->len - pos - 1) * sizeof(*pl->buf);
+	
 	if(len) memmove(&pl->buf[pos], &pl->buf[pos+1], len);
 	pl->len--;
+	
+	if(pl->len < MAXIMUM_SPARE/2){
+		void *n = realloc(pl->buf, sizeof(*pl->buf) * MAXIMUM_SPARE);
+		
+		if(n != NULL){
+			pl->maxlen = MAXIMUM_SPARE;
+			pl->buf = n;
+		}
+		/* if that realloc fails, nothing bad happens */
+	}
 }
 struct ChildInfo childlist_get(struct ChildList *pl, size_t pos)
 {

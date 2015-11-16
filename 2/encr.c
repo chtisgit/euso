@@ -1,3 +1,14 @@
+/*!
+	\file	encr.c
+	\author	Christian Fiedler <e1363562@student.tuwien.ac.at>
+	\date	16.11.2015
+
+	\brief	main file of the project
+
+	\details
+		this program hashes passwords
+*/
+
 #include "encr.h"
 #include "childlist.h"
 
