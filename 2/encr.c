@@ -21,11 +21,23 @@ void error(const char *f)
 	exit(EXIT_FAILURE);
 }
 
-void signal_child(int s)
+void wait_child(void)
 {
 	int status;
-	pid_t exited = wait(&status);
-	childlist_mark_inactive(childlist, exited, status);
+	pid_t exited;
+
+	do
+		exited = wait(&status);
+	while(exited == -1 && errno == EINTR);
+	//assert(exited > 0);
+
+	if(exited > 0)
+		childlist_mark_inactive(childlist, exited, status);
+}
+
+void signal_child(int s)
+{
+	wait_child();
 }
 
 int check_childlist(void)
@@ -98,7 +110,7 @@ int setup_signal_handler(void)
 	sa.sa_handler = signal_child;
 	if(sigfillset(&sa.sa_mask) < 0)
 		error("sigfillset");
-	sa.sa_flags = SA_RESTART;
+	sa.sa_flags = SA_RESTART|SA_NOCLDSTOP;
 
 	return sigaction(SIGCHLD, &sa, NULL) == -1 ? 0 : 1;
 }
@@ -108,6 +120,7 @@ void cleanup(void)
 	if(childlist != NULL){
 		while(check_childlist() > 0){
 			sleep(1);
+			wait_child();
 			DEBUG(fprintf(stderr,"childlist_len: %d\n",childlist_len(childlist)));
 		}
 
