@@ -10,9 +10,8 @@
 #include <unistd.h>
 #include <sys/wait.h>
 
-struct ChildList *childlist = NULL;
+static struct ChildList *childlist = NULL;
 
-void cleanup(void);
 
 void error(const char *f)
 {
@@ -119,7 +118,6 @@ void cleanup(void)
 {
 	if(childlist != NULL){
 		while(check_childlist() > 0){
-			sleep(1);
 			wait_child();
 			DEBUG(fprintf(stderr,"childlist_len: %d\n",childlist_len(childlist)));
 		}

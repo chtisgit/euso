@@ -16,14 +16,14 @@ DOXY_TRASH=html latex doxygen_sqlite3.db
 all: release
 
 release: CFLAGS+= -O3
-release: $(ENCR) 
+release: $(PROJ) 
 
 # debug -> debug mode 
 debug: CFLAGS+= -DENDEBUG -g -O0
-debug: clean $(ENCR) 
+debug: clean $(PROJ) 
  
-$(ENCR): $(OBJS)
-	$(CC) $(LFLAGS) $(OBJS) -o $(ENCR) 
+$(PROJ): $(OBJS)
+	$(CC) $(LFLAGS) $(OBJS) -o $(PROJ) 
 
 %.o: %.c
 	$(CC) $(CFLAGS) $^
