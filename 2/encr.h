@@ -27,8 +27,14 @@
 #include <assert.h>
 
 /*!
-	\brief	waits for children to exit
+	\brief	waits for children to exit (if any)
 		and frees memory
+	\details
+		determines by checking the global variable child_process,
+		if the parent or a child is exiting
+		If it is the parent, cleanup waits for additional child 
+		processes to exit.
+		Then for both cases the childlist data structure is freed.
 */
 void cleanup(void);
 
@@ -44,6 +50,8 @@ void error(const char *f);
 /*!
 	\brief	waits for a child process to exit
 		and marks it as inactive in childlist
+	\details
+		uses the global variable childlist
 */
 void wait_child(void);
 
@@ -74,8 +82,13 @@ char* read_from_stdin(void);
 	\param	sleep_time
 		time in seconds that the process will sleep before
 		printing the hash to screen
+	\details
+		this function is called by main in a child process
+		created by fork()
+		The global variable child_process is set to 1 when
+		this function is called
 */
-void compute_pw(const char *pw, const int sleep_time);
+void compute_pw(const char *pw, int sleep_time);
 
 /*!
 	\brief	sets up the signal handler signal_child for SIGCHLD
@@ -83,5 +96,17 @@ void compute_pw(const char *pw, const int sleep_time);
 */
 int setup_signal_handler(void);
 
+/*!
+	\brief	main program
+	\return	EXIT_SUCCESS on success and EXIT_FAILURE otherwise
+	\details
+		sets up the global variable progname to point to argv[0]
+		initializes the global childlist variable
+		sets child_process to 1 for child processes created by fork()
+		after checking for correct usage of the program, main sets
+		up cleanup() to be run at exit.
+
+*/
+int main(int argc, char **argv);
 
 #endif

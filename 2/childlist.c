@@ -16,6 +16,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+/*! \brief	capacity that shall be added, when a list runs out of space */
+#define CAPACITY_INC	20
+
 struct ChildList* childlist_new(size_t init_len)
 {
 	struct ChildList *pl = malloc( sizeof(struct ChildList) );
@@ -36,15 +39,13 @@ struct ChildList* childlist_new(size_t init_len)
 
 int childlist_add(struct ChildList *pl, const struct ChildInfo *const info)
 {
-	const int plus = 20;
-
 	if(pl->len == pl->maxlen){
-		void *n = realloc(pl->buf, (pl->maxlen+plus) * sizeof(*pl->buf));
+		void *n = realloc(pl->buf, (pl->maxlen+CAPACITY_INC) * sizeof(*pl->buf));
 		if(n == NULL)
 			return 0;
 		
 		pl->buf = n;
-		pl->maxlen += plus;
+		pl->maxlen += CAPACITY_INC;
 	}
 
 	pl->buf[pl->len++] = *info;
@@ -66,7 +67,7 @@ void childlist_remove(struct ChildList *pl, size_t pos)
 	
 	childlist_elem_destroy(&pl->buf[pos]);
 	if(len > 0)
-		memmove(&pl->buf[pos], &pl->buf[pos+1], len);
+		(void)memmove(&pl->buf[pos], &pl->buf[pos+1], len);
 	pl->len--;
 	
 	const int MAXIMUM_SPARE = pl->maxlen/2;

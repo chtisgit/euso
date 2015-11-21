@@ -21,13 +21,13 @@
 #include <unistd.h>
 #include <sys/wait.h>
 
+const char *progname = NULL;
 static struct ChildList *childlist = NULL;
-
+int child_process = 0;
 
 void error(const char *f)
 {
-	(void)fprintf(stderr, "error in function %s\n", f);
-	cleanup();
+	(void)fprintf(stderr, "%s: error in function %s\n", progname, f);
 	exit(EXIT_FAILURE);
 }
 
@@ -39,7 +39,6 @@ void wait_child(void)
 	do
 		exited = wait(&status);
 	while(exited == -1 && errno == EINTR);
-	//assert(exited > 0);
 
 	if(exited > 0)
 		childlist_mark_inactive(childlist, exited, status);
@@ -55,10 +54,8 @@ int check_childlist(void)
 	for(int i = 0; i < childlist_len(childlist); i++){
 		const struct ChildInfo *const info = childlist_get_ro(childlist, i);
 		
-		if(info->active == 0){
-			DEBUG(fprintf(stderr, "pid %d inactive. removing.\n",info->pid));
+		if(info->active == 0)
 			childlist_remove(childlist, i--);
-		}
 	}
 
 	return childlist_len(childlist);
@@ -71,6 +68,8 @@ void usage(void)
 
 char* read_from_stdin(void)
 {
+	const int LENGTH_INC = 20;
+
 	size_t maxlen = 30, len = 0;
 	char *s = malloc(maxlen);
 	
@@ -82,12 +81,11 @@ char* read_from_stdin(void)
 
 		if(s[len-1] == EOF){
 			free(s);
-			s = NULL;
-			break;
+			return NULL;
 		}
 
 		if(s[len-1] != '\n' && len == maxlen){
-			char *n = realloc(s, maxlen += 20);
+			char *n = realloc(s, maxlen += LENGTH_INC);
 			if(n == NULL){
 				free(s);
 				error("realloc");
@@ -97,32 +95,35 @@ char* read_from_stdin(void)
 
 	}while(s[len-1] != '\n');
 	
-	if(s != NULL) s[len-1] = '\0';
+	s[len-1] = '\0';
 
 	return s;
 }
 
-void compute_pw(const char *pw, const int sleep_time)
+void compute_pw(const char *pw, int sleep_time)
 {
 	const char *result = crypt(pw, "aC");
 
-	sleep( sleep_time );
+	do
+		sleep_time = sleep( sleep_time );
+	while(sleep_time > 0);
 
 	printf("encr: %s -> %s\n", pw, result);
-	free((void*)pw);
 
-	childlist_delete(childlist);
+	free((void*)pw);
 
 	exit(EXIT_SUCCESS);
 }
 
 int setup_signal_handler(void)
 {
-	struct sigaction sa;
-	sa.sa_handler = signal_child;
+	struct sigaction sa = {
+		.sa_handler = signal_child,
+		.sa_flags = SA_RESTART|SA_NOCLDSTOP
+	};
+
 	if(sigfillset(&sa.sa_mask) < 0)
 		error("sigfillset");
-	sa.sa_flags = SA_RESTART|SA_NOCLDSTOP;
 
 	return sigaction(SIGCHLD, &sa, NULL) == -1 ? 0 : 1;
 }
@@ -130,9 +131,9 @@ int setup_signal_handler(void)
 void cleanup(void)
 {
 	if(childlist != NULL){
-		while(check_childlist() > 0){
-			wait_child();
-			DEBUG(fprintf(stderr,"childlist_len: %d\n",childlist_len(childlist)));
+		if(child_process == 0){
+			while(check_childlist() > 0)
+				wait_child();
 		}
 
 		childlist_delete(childlist);
@@ -146,9 +147,15 @@ int main(int argc, char **argv)
 		usage();
 		return EXIT_FAILURE;
 	}
+	progname = argv[0];
+
 	DEBUG(fprintf(stderr, "--- DEBUG MODE ---\n"));
 
+	atexit(cleanup);
+
 	childlist = childlist_new(30);
+	if(childlist == NULL)
+		error("childlist_new");
 
 	if(setup_signal_handler() == 0)
 		error("sigaction");
@@ -173,14 +180,15 @@ int main(int argc, char **argv)
 			error("fork");
 			assert(0);
 		case 0:
+			child_process = 1;
 			compute_pw(child.pw, sleep_time);
 			assert(0);
 		default:
-			childlist_add(childlist, &child);
+			if(childlist_add(childlist, &child) == 0)
+				error("childlist_add");
 		}
 
 	}
 
-	cleanup();
 	return EXIT_SUCCESS;
 }
