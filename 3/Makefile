@@ -8,7 +8,7 @@ EXE_2=$(PROJ)-server
 PROJFILES=*.c *.h Makefile Doxyfile
 PROJARCHIVE="$(PROJ).tgz"
 
-CC=clang
+CC=gcc
 CFLAGS=-std=c99 -I. -pedantic -Wall -c -D_XOPEN_SOURCE=500 -D_BSD_SOURCE
 LFLAGS=-pthread -lncurses -lrt
 
@@ -52,7 +52,7 @@ docs:
 	doxygen $(DOXYFILE)
 
 export:
-	tar cfz $(PROJARCHIVE) $(PROJFILES)
+	tar cvzf $(PROJARCHIVE) $(PROJFILES)
 
 .PHONY: all docs release debug clean cleanshm _all
 
