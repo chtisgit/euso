@@ -41,6 +41,7 @@ struct Field{
 };
 extern const char FIELD_CHAR[FIELD_LAST];
 
+
 struct SharedStructure{
 	enum{
 		EC_NONE,
@@ -48,6 +49,7 @@ struct SharedStructure{
 		EC_CLIENTDISCONNECT,
 		EC_INTERNALERROR,
 		EC_GAMEOVER,
+		EC_LAST
 	} errorcode;
 
 	enum{
@@ -62,7 +64,9 @@ struct SharedStructure{
 	int won;	/* player number that has won */
 	struct Ship ship[2];
 	struct Coord shot;
+	int hit;
 };
+extern const char *SRV_MSG[EC_LAST];
 extern struct SharedStructure *shared;
 
 extern int shm_fd;
@@ -70,7 +74,7 @@ extern int shm_fd;
 /* SEMAPHORES */
 
 /* don't use SEM_LAST */
-enum{ SEM_GLOBAL, SEM_1, SEM_2, SEM_SHUTDOWN, SEM_SYNC, SEM_LAST };
+enum{ SEM_GLOBAL, SEM_1, SEM_2, SEM_SYNC, SEM_LAST };
 
 extern const char *SEM_NAME[SEM_LAST];
 extern sem_t *sem[SEM_LAST];
@@ -82,5 +86,7 @@ void usage(void);
 int ship_check(const struct Ship *const ship);
 void bail_out(const char *s);
 void sem_wait_cb(sem_t *s, void (*cb)(void));
+
+#define sem_wait_atom(X)	sem_wait_cb((X), NULL)
 
 #endif

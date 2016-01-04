@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <errno.h>
 #include <unistd.h>
 #include <sys/types.h>
 
@@ -12,20 +13,20 @@
 const char *progname;
 static int player_nr = 0;
 static int mysem = -1;
+static const char *status = NULL;
 
 static const char *STAGE_STR[] = {
-	"Waiting for player 2...",
+	"Waiting for your opponent ...",
 	"Position your ship! Use Space to toggle blocks and Enter to confirm!",
-	"It's your turn!",
+	"It's your turn! Fire with Space!",
 	"It's your opponent's turn!",
 	"Server shutting down"
 };
 
-static const char* map_stage_str(void)
+static const char* map_stage_str(int stage)
 {
 	assert(player_nr == 1 || player_nr == 2);
-	assert(shared != NULL);
-	assert(shared->stage >= 0 && shared->stage < STAGE_LAST);
+	assert(stage >= 0 && stage < STAGE_LAST);
 
 	if(player_nr == 2){
 		if(shared->stage == STAGE_TURN1)
@@ -36,18 +37,27 @@ static const char* map_stage_str(void)
 	return STAGE_STR[shared->stage];
 }
 
-static void cleanup_curses(void)
+static void check_shutdown(void)
 {
-	if(isendwin() != TRUE)
-		(void)endwin();
+	if(shared->stage == STAGE_SHUTDOWN){
+		exitsig = 1;
+		endwin();
+		fprintf(stderr, "Server shutdown!\n");
+		fprintf(stderr, "%s\n", SRV_MSG[shared->errorcode]);
+		if(shared->errorcode == EC_GAMEOVER){
+			fprintf(stderr,player_nr == shared->won ? "You won!\n" : "You lost!\n");
+		}
+		exit(EXIT_SUCCESS);
+	}
 }
 
 #define GFX_W	(FIELD_W*2+1+2)
 #define GFX_H	(FIELD_H+4)
 
-static void draw_game_field(WINDOW *win, const struct Field *const gamef, int cursor_x, int cursor_y)
+static void draw_game_field(WINDOW *win, const struct Field *const gamef, int cursor_x, int cursor_y, int stage_assume)
 {
 	int x, y;
+	(void)clear();
 	(void)wclear(win);
 	(void)box(win, '|', '-');
 
@@ -74,8 +84,15 @@ static void draw_game_field(WINDOW *win, const struct Field *const gamef, int cu
 	else
 		assert(0);
 	
-	if(shared != NULL)
-		(void)mvaddstr(0, 2, map_stage_str());
+	if(shared != NULL && stage_assume < 0)
+		(void)mvaddstr(1, 2, map_stage_str(shared->stage));
+	else
+		(void)mvaddstr(1, 2, STAGE_STR[stage_assume]);
+	
+	if(status != NULL)
+		(void)mvaddstr(LINES-1, 2, status);
+
+	(void)refresh();
 
 	(void)move(0,0);
 }
@@ -94,6 +111,8 @@ static int build_ship(const struct Field *const gamef)
 			}
 		}
 	}
+	if(coordn != SHIP_COORDS) return 0;
+
 	return ship_check(myship);
 }
 
@@ -110,12 +129,19 @@ static void set_ship(WINDOW *win)
 
 	x = y = 0;
 
+	status = NULL;
 	do{
-		draw_game_field(win, &gamef, x, y);
+		draw_game_field(win, &gamef, x, y, -1);
 		int ch = getch();
+
+		check_shutdown();
+
 		switch(ch){
 		case KEY_ENTER:
+		case '\n': case '\r':
 			enter = build_ship(&gamef);
+			if(enter == 0)
+				status = "Error! Try again!";
 			break;
 		case KEY_LEFT:
 		case 'A': case 'a':
@@ -141,7 +167,52 @@ static void set_ship(WINDOW *win)
 			break;
 		}
 	}while(enter == 0);
+	status = NULL;
+}
 
+
+struct Coord shoot(WINDOW *win, struct Field *gamef, int *const x, int *const y)
+{
+	struct Coord shot;
+	int space = 0;
+
+	assert(*x >= 0 && *y >= 0 && *x < FIELD_W && *y < FIELD_H);
+
+	do{
+		draw_game_field(win, gamef, *x, *y, -1);
+		const int ch = getch();
+		switch(ch){
+		case KEY_LEFT:
+		case 'A': case 'a':
+			if(*x > 0) (*x)--;
+			break;
+		case KEY_RIGHT:
+		case 'D': case 'd':
+			if(*x < FIELD_W-1) (*x)++;
+			break;
+		case KEY_UP:
+		case 'W': case 'w':
+			if(*y > 0) (*y)--;
+			break;
+		case KEY_DOWN:
+		case 'S': case 's':
+			if(*y < FIELD_H-1) (*y)++;
+			break;
+		case ' ':
+			shot.x = *x;
+			shot.y = *y;
+
+			if(gamef->buf[*x][*y] == FIELD_HIT || gamef->buf[*x][*y] == FIELD_WATER)
+				status = "You already shot there!";
+			else
+				space = 1;
+			break;
+		}
+
+	}while(space == 0);
+	status = NULL;
+	
+	return shot;
 }
 
 int main(int argc, char **argv)
@@ -157,27 +228,31 @@ int main(int argc, char **argv)
 
 	atexit(free_common_ressources);
 
-	sem[SEM_GLOBAL] = sem_open(SEM_NAME[SEM_GLOBAL], 0);
-	sem[SEM_1] = sem_open(SEM_NAME[SEM_1], 0);
-	sem[SEM_2] = sem_open(SEM_NAME[SEM_2], 0);
-	sem[SEM_SHUTDOWN] = sem_open(SEM_NAME[SEM_SHUTDOWN], 0);
-	sem[SEM_SYNC] = sem_open(SEM_NAME[SEM_SYNC], 0);
+	const int oflag = 0;
+	sem[SEM_GLOBAL] = sem_open(SEM_NAME[SEM_GLOBAL], oflag);
+	sem[SEM_1] = sem_open(SEM_NAME[SEM_1], oflag);
+	sem[SEM_2] = sem_open(SEM_NAME[SEM_2], oflag);
+	sem[SEM_SYNC] = sem_open(SEM_NAME[SEM_SYNC], oflag);
 
 	for(int i = 0; i < LEN(sem); i++){
-		if(sem[i] == SEM_FAILED)
+		if(sem[i] == SEM_FAILED){
 			bail_out("sem_open");
+		}
 	}
 
 	if(allocate_shared(0) == 0)
 		bail_out("allocate_shared");
 
 	(void)initscr();
-	(void)atexit( cleanup_curses );
+	(void)cbreak();
+	(void)keypad(stdscr, TRUE);
 	WINDOW *win = newwin(GFX_H,GFX_W,3,2);
 	cursor_x = cursor_y = 0;
 
 	/* requesting access and setting player number */
 	sem_wait(sem[SEM_GLOBAL]);
+	check_shutdown();
+
 	player_nr = ++shared->players;
 	if(player_nr == 1)
 		mysem = SEM_1;
@@ -186,22 +261,43 @@ int main(int argc, char **argv)
 	else
 		assert(0);
 
-	draw_game_field(win, &gamef, cursor_x, cursor_y);
+	draw_game_field(win, &gamef, cursor_x, cursor_y, STAGE_WAIT);
 	sem_post(sem[mysem]);
 
-	/* waiting for SET stage*/
+	/* waiting for SET stage */
 	sem_wait(sem[SEM_SYNC]);
+	check_shutdown();
 	assert(shared->stage == STAGE_SET);
 
 	set_ship(win);
 
+	draw_game_field(win, &gamef, cursor_x, cursor_y, STAGE_WAIT);
+	sem_post(sem[mysem]);
+	sem_wait(sem[SEM_GLOBAL]);
+	check_shutdown();
 
-	
+	for(;;){
+		sem_wait(sem[mysem]);
+		check_shutdown();
 
+		/* it's our turn */
+		struct Coord shot = shoot(win, &gamef, &cursor_x, &cursor_y);
+		shared->shot = shot;
+		
+		sem_post(sem[SEM_SYNC]);
+		sem_wait(sem[mysem]);
+		check_shutdown();
 
-	getch();
+		/* the server tells us, if we hit, now */
+		gamef.buf[shot.x][shot.y] = (shared->hit == 0 ? FIELD_WATER : FIELD_HIT);
+		
+		draw_game_field(win, &gamef, cursor_x, cursor_y, STAGE_TURN2);
+		sem_post(sem[SEM_SYNC]);
+
+	}
 
 	delwin(win); 
+	endwin();
 
 	return EXIT_SUCCESS;
 }

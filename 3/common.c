@@ -11,10 +11,16 @@ const char *progname = NULL;
 int shm_fd = -1;
 struct SharedStructure *shared = NULL;
 
-const char *SEM_NAME[] = { "/battlesA", "/battles1", "/battles2", "/battlesZ", "/battlesS" };
-sem_t *sem[] = { SEM_FAILED, SEM_FAILED, SEM_FAILED, SEM_FAILED, SEM_FAILED };
+const char *SEM_NAME[] = { "/battlesA", "/battles1", "/battles2", "/battlesZ" };
+sem_t *sem[] = { SEM_FAILED, SEM_FAILED, SEM_FAILED, SEM_FAILED };
 
 const char FIELD_CHAR[] = { '#' , '~', 'x', ' ' };
+const char *SRV_MSG[] = {
+	"", "",
+	"Your opponent left the game!",
+	"Internal Error!",
+	"Game over!",
+};
 
 void usage(void)
 {
@@ -48,21 +54,89 @@ int allocate_shared(int owner)
 
 int ship_check(const struct Ship *const ship)
 {
-	int i;
+	int i, j, k, n, correct;
 	const struct Coord *c = ship->c;
 
-	if(c[0].x < 0 || c[0].y < 0 || c[0].x >= FIELD_W || c[0].y >= FIELD_H)
-		return 0;
-
-	for(i = 1; i < SHIP_COORDS; i++){
-		if(c[i].x < 0 || c[i].y < 0 || c[i].x >= FIELD_W || c[i].y >= FIELD_H)
-			return 0;
-
-		if(abs(c[i].x - c[i-1].x) != 1 || abs(c[i].y - c[i-1].y) != 1)
-			return 0;
+	for(i = 0; i < FIELD_W; i++){
+		n = 0;
+		for(j = 0; j < FIELD_H; j++){
+			correct = 0;
+			for(k = 0; k < SHIP_COORDS; k++){
+				if(i == c[k].x && j == c[k].y){
+					correct = 1;
+					break;
+				}
+			}
+			if(correct != 0){
+				n++;
+				if(n == SHIP_COORDS)
+					return 1;
+			}else{
+				n = 0;
+			}
+		}
 	}
-	return 1;
-
+	for(j = 0; j < FIELD_H; j++){
+		n = 0;
+		for(i = 0; i < FIELD_W; i++){
+			correct = 0;
+			for(k = 0; k < SHIP_COORDS; k++){
+				if(i == c[k].x && j == c[k].y){
+					correct = 1;
+					break;
+				}
+			}
+			if(correct != 0){
+				n++;
+				if(n == SHIP_COORDS)
+					return 1;
+			}else{
+				n = 0;
+			}
+		}
+	}
+	for(i = SHIP_COORDS-FIELD_H; i < FIELD_W-SHIP_COORDS+1; i++){
+		n = 0;
+		for(j = 0; j < FIELD_H; j++){
+			correct = 0;
+			for(k = 0; k < SHIP_COORDS; k++){
+				if(i+j >= 0 && i+j < FIELD_W && i+j == c[k].x && j == c[k].y){
+					correct = 1;
+					break;
+				}
+			}
+			if(correct != 0){
+				n++;
+				if(n == SHIP_COORDS)
+					return 1;
+			}else{
+				n = 0;
+			}
+		}
+	}
+	for(i = SHIP_COORDS-FIELD_H; i < FIELD_W-SHIP_COORDS+1; i++){
+		n = 0;
+		for(j = 0; j < FIELD_H; j++){
+			correct = 0;
+			for(k = 0; k < SHIP_COORDS; k++){
+				const int x = i+j;
+				const int y = FIELD_H - j - 1;
+				if(y >= 0 && y < FIELD_H && x >= 0 && x < FIELD_W && x == c[k].x && y == c[k].y){
+					correct = 1;
+					break;
+				}
+			}
+			if(correct != 0){
+				n++;
+				if(n == SHIP_COORDS)
+					return 1;
+			}else{
+				n = 0;
+			}
+		}
+	}
+	
+	return 0;
 }
 
 static void (*signal_handler_cb)(int);
@@ -105,8 +179,7 @@ void free_common_ressources(void)
 			shared = NULL;
 		}
 		(void)shm_unlink(SHMEM_NAME);
-	}
-	
+	}	
 }
 
 void sem_wait_cb(sem_t *s, void (*cb)(void))
@@ -114,7 +187,7 @@ void sem_wait_cb(sem_t *s, void (*cb)(void))
 	int x;
 	do{
 		x = sem_wait(s);
-		if(exitsig != 0) cb();
+		if(cb != NULL && exitsig != 0) cb();
 	}while(x == -1 && errno == EINTR);
 }
 

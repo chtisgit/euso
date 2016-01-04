@@ -41,6 +41,9 @@ $(EXE_2): $(OBJS_2)
 %.o: %.c
 	$(CC) $(CFLAGS) $^
 
+cleanshm:
+	rm -f /dev/shm/*battle*
+
 clean:
 	rm -f *.o $(EXE_1) $(EXE_2) $(PROJARCHIVE)
 	rm -Rf $(DOXY_TRASH)
@@ -51,5 +54,5 @@ docs:
 export:
 	tar cfz $(PROJARCHIVE) $(PROJFILES)
 
-.PHONY: all docs release debug clean _all
+.PHONY: all docs release debug clean cleanshm _all
 
