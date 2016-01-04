@@ -30,10 +30,16 @@ struct Ship{
 #define FIELD_W		4
 #define FIELD_H		4
 
-struct FieldType{
-	int buf[FIELD_W][FIELD_H];
-
+struct Field{
+	enum{
+		FIELD_UNKNOWN,
+		FIELD_WATER,
+		FIELD_HIT,
+		FIELD_NIL,
+		FIELD_LAST
+	} buf[FIELD_W][FIELD_H];
 };
+extern const char FIELD_CHAR[FIELD_LAST];
 
 struct SharedStructure{
 	enum{
@@ -49,7 +55,8 @@ struct SharedStructure{
 		STAGE_SET,
 		STAGE_TURN1,
 		STAGE_TURN2,
-		STAGE_SHUTDOWN
+		STAGE_SHUTDOWN,
+		STAGE_LAST
 	} stage;
 	int players;	/* number of players on the server */
 	int won;	/* player number that has won */
@@ -62,14 +69,18 @@ extern int shm_fd;
 
 /* SEMAPHORES */
 
-enum{ SEM_GLOBAL, SEM_1, SEM_2, SEM_SHUTDOWN, SEM_SYNC };
+/* don't use SEM_LAST */
+enum{ SEM_GLOBAL, SEM_1, SEM_2, SEM_SHUTDOWN, SEM_SYNC, SEM_LAST };
 
-extern const char *SEM_NAME[3];
-extern sem_t *sem[3];
+extern const char *SEM_NAME[SEM_LAST];
+extern sem_t *sem[SEM_LAST];
 
+int setup_signal_handler(void (*handler)(int));
+int allocate_shared(int owner);
 void free_common_ressources(void);
 void usage(void);
+int ship_check(const struct Ship *const ship);
 void bail_out(const char *s);
-int sem_wait_sigsafe(const sem_t *const s);
+void sem_wait_cb(sem_t *s, void (*cb)(void));
 
 #endif

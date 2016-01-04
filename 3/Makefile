@@ -42,7 +42,7 @@ $(EXE_2): $(OBJS_2)
 	$(CC) $(CFLAGS) $^
 
 clean:
-	rm -f *.o $(PROJ) $(PROJARCHIVE)
+	rm -f *.o $(EXE_1) $(EXE_2) $(PROJARCHIVE)
 	rm -Rf $(DOXY_TRASH)
 
 docs:

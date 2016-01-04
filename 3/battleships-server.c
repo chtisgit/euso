@@ -6,8 +6,6 @@
 
 #include <common.h>
 
-const char *progname;
-
 void cleanup(void)
 {
 	if(shared->errorcode == EC_NONE){
@@ -18,12 +16,14 @@ void cleanup(void)
 	}
 
 	shared->stage = STAGE_SHUTDOWN;
-	sem_post(sem[SEM_GLOBAL]);
-	sem_post(sem[SEM_1]);
-	sem_wait(sem[SEM_SHUTDOWN]);
 	if(shared->players > 0){
-		sem_post(sem[SEM_2]);
+		sem_post(sem[SEM_GLOBAL]);
+		sem_post(sem[SEM_1]);
 		sem_wait(sem[SEM_SHUTDOWN]);
+		if(shared->players > 0){
+			sem_post(sem[SEM_2]);
+			sem_wait(sem[SEM_SHUTDOWN]);
+		}
 	}
 	assert(shared->players == 0);
 	free_common_ressources();
@@ -32,6 +32,15 @@ void cleanup(void)
 
 int main(int argc, char** argv)
 {
+	progname = argv[0];
+	if(argc != 1){
+		usage();
+		return EXIT_FAILURE;
+	}
+
+	if(setup_signal_handler(NULL) == 0)
+		bail_out("setup_signal_handler");
+
 	atexit(free_common_ressources);
 
 	sem[SEM_GLOBAL] = sem_open(SEM_NAME[SEM_GLOBAL], O_CREAT, O_RDWR, 1);
@@ -45,7 +54,7 @@ int main(int argc, char** argv)
 			bail_out("sem_open");
 	}
 
-	if(allocate_shared() == 0)
+	if(allocate_shared(1) == 0)
 		bail_out("allocate_shared");
 
 	/* waiting for the two players */
@@ -53,15 +62,11 @@ int main(int argc, char** argv)
 	shared->players = 0;
 	shared->stage = STAGE_WAIT;
 
-	memset(shared->ship, 0, sizeof(shared->ship));
-	printf("sizeof(shared->ship) : %d\n",sizeof(shared->ship));
-
-
-	if(sem_wait_sigsafe(sem[SEM_1]) == 0) cleanup();
+	sem_wait_cb(sem[SEM_1], cleanup);
 	
 	sem_post(sem[SEM_GLOBAL]);
 
-	if(sem_wait_sigsafe(sem[SEM_2]) == 0) cleanup();
+	sem_wait_cb(sem[SEM_2], cleanup);
 
 	assert(shared->players == 2);
 	
@@ -69,8 +74,10 @@ int main(int argc, char** argv)
 	
 	shared->stage = STAGE_SET;
 
-	if(sem_wait_sigsafe(sem[SEM_1]) == 0) cleanup();
-	if(sem_wait_sigsafe(sem[SEM_2]) == 0) cleanup();
+	sem_post(sem[SEM_SYNC]);
+	sem_post(sem[SEM_SYNC]);
+	sem_wait_cb(sem[SEM_1], cleanup);
+	sem_wait_cb(sem[SEM_2], cleanup);
 
 	if(ship_check(&shared->ship[0]) == 0) cleanup();
 	if(ship_check(&shared->ship[1]) == 0) cleanup();
@@ -78,17 +85,16 @@ int main(int argc, char** argv)
 	sem_post(sem[SEM_GLOBAL]);
 	sem_post(sem[SEM_GLOBAL]);
 
-
 	for(;;){
 		shared->stage = STAGE_TURN1;
 		sem_post(sem[SEM_1]);
 		/* player 1 makes his turn (sets shared->shot)*/
-		sem_wait(sem[SEM_SYNC]);
+		sem_wait_cb(sem[SEM_SYNC], cleanup);
 
 		shared->stage = STAGE_TURN2;
 		sem_post(sem[SEM_2]);
 		/* player 2 makes his turn (sets shared->shot)*/
-		sem_wait(sem[SEM_SYNC]);
+		sem_wait_cb(sem[SEM_SYNC], cleanup);
 	}
 
 	return EXIT_SUCCESS;
