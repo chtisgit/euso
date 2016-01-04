@@ -110,7 +110,7 @@ int main(int argc, char** argv)
 		/* player 1 makes his turn (sets shared->shot)*/
 		sem_wait_cb(sem[SEM_SYNC], cleanup);
 		shared->hit = has_shot_hit(&shared->ship[1]);
-		if(is_ship_dead(&shared->ship[0]) != 0){
+		if(is_ship_dead(&shared->ship[1]) != 0){
 			shared->errorcode = EC_GAMEOVER;
 			shared->won = 1;
 			cleanup();
