@@ -243,15 +243,19 @@ int main(int argc, char **argv)
 	if(allocate_shared(0) == 0)
 		bail_out("allocate_shared");
 
+	(void)printf("Waiting for server...\n");
+	do{
+		/* requesting access and setting player number */
+		sem_wait(sem[SEM_GLOBAL]);
+		check_shutdown();
+	}while(shared->stage != STAGE_WAIT && shared->players >= 2);
+
 	(void)initscr();
 	(void)cbreak();
 	(void)keypad(stdscr, TRUE);
 	WINDOW *win = newwin(GFX_H,GFX_W,3,2);
-	cursor_x = cursor_y = 0;
 
-	/* requesting access and setting player number */
-	sem_wait(sem[SEM_GLOBAL]);
-	check_shutdown();
+	cursor_x = cursor_y = 0;
 
 	player_nr = ++shared->players;
 	if(player_nr == 1)
