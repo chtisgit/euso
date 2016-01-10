@@ -46,7 +46,7 @@ void usage(void)
 
 void bail_out(const char *s)
 {
-	fprintf(stderr, "error: function '%s'\n",s);
+	(void)fprintf(stderr, "error: function '%s'\n",s);
 	exit(EXIT_FAILURE);
 }
 

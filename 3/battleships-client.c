@@ -85,10 +85,10 @@ static void check_shutdown(void)
 	if(shared->stage == STAGE_SHUTDOWN){
 		exitsig = 1;
 		endwin();
-		fprintf(stderr, "Server shutdown!\n");
-		fprintf(stderr, "%s\n", SRV_MSG[shared->errorcode]);
+		(void)fprintf(stderr, "Server shutdown!\n");
+		(void)fprintf(stderr, "%s\n", SRV_MSG[shared->errorcode]);
 		if(shared->errorcode == EC_GAMEOVER){
-			fprintf(stderr,player_nr == shared->won ? "You won!\n" : "You lost!\n");
+			(void)fprintf(stderr,player_nr == shared->won ? "You won!\n" : "You lost!\n");
 		}
 		cleanup();
 	}
