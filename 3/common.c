@@ -1,6 +1,8 @@
+#include <common.h>
+
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <common.h>
 #include <signal.h>
 #include <unistd.h>
 #include <errno.h>
@@ -11,8 +13,8 @@ const char *progname = NULL;
 int shm_fd = -1;
 struct SharedStructure *shared = NULL;
 
-const char *SEM_NAME[] = { "/battlesA", "/battles1", "/battles2", "/battlesZ" };
-sem_t *sem[] = { SEM_FAILED, SEM_FAILED, SEM_FAILED, SEM_FAILED };
+const char *SEM_NAME[] = { "/battlesS", "/battlesA", "/battles1", "/battles2", "/battlesZ", "/battlesE" };
+sem_t *sem[] = { SEM_FAILED, SEM_FAILED, SEM_FAILED, SEM_FAILED, SEM_FAILED, SEM_FAILED };
 
 const char FIELD_CHAR[] = { '#' , '~', 'x', ' ' };
 const char *SRV_MSG[] = {
@@ -35,6 +37,8 @@ void bail_out(const char *s)
 
 int allocate_shared(int owner)
 {
+	assert(LEN(sem) == LEN(SEM_NAME) && LEN(SEM_NAME) == SEM_LAST);
+
 	const int oflag = (owner == 0 ? 0 : O_CREAT) | O_RDWR;
 	shm_fd = shm_open(SHMEM_NAME, oflag, 0600);
 	if(shm_fd == -1) return 0;
@@ -50,6 +54,15 @@ int allocate_shared(int owner)
 		return 0;
 	}
 	return 1;
+}
+
+void ship_init(struct Ship *const ship)
+{
+	int i;
+	for(i = 0; i < SHIP_COORDS; i++){
+		ship->c[i].x = ship->c[i].y = 0;
+		ship->dead[i] = 0;
+	}
 }
 
 int ship_check(const struct Ship *const ship)
@@ -162,24 +175,41 @@ int setup_signal_handler(void (*handler)(int))
 	return sigaction(SIGINT, &sa, NULL) == -1 || sigaction(SIGTERM, &sa, NULL) == -1 ? 0 : 1;
 }
 
-void free_common_ressources(void)
+static void free_semaphores(int owner)
 {
 	int i;
 	for(i = 0; i < LEN(sem); i++){
-		if(sem[i] != NULL){
+		if(sem[i] != SEM_FAILED){
 			(void)sem_close(sem[i]);
-			(void)sem_unlink(SEM_NAME[i]);
 			sem[i] = SEM_FAILED;
 		}
+		if(owner != 0) 
+			(void)sem_unlink(SEM_NAME[i]);
 	}
+}
 
+static void free_shared(int owner)
+{
 	if(shm_fd != -1){
 		if(shared != NULL){
 			munmap(shared, sizeof(*shared));
 			shared = NULL;
 		}
-		(void)shm_unlink(SHMEM_NAME);
+		if(owner != 0)
+			(void)shm_unlink(SHMEM_NAME);
 	}	
+}
+
+void free_common_ressources_owner(void)
+{
+	free_semaphores(1);
+	free_shared(1);
+}
+
+void free_common_ressources(void)
+{
+	free_semaphores(0);
+	free_shared(0);
 }
 
 void sem_wait_cb(sem_t *s, void (*cb)(void))

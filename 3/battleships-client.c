@@ -1,3 +1,5 @@
+#include <common.h>
+
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -8,7 +10,6 @@
 
 #include <curses.h>
 
-#include <common.h>
 
 const char *progname;
 static int player_nr = 0;
@@ -18,10 +19,22 @@ static const char *status = NULL;
 static const char *STAGE_STR[] = {
 	"Waiting for your opponent ...",
 	"Position your ship! Use Space to toggle blocks and Enter to confirm!",
-	"It's your turn! Fire with Space!",
+	"It's your turn! Fire with Space! or surrender with Ctrl+C...",
 	"It's your opponent's turn!",
 	"Server shutting down"
 };
+
+static void cleanup()
+{
+	if(sem[SEM_EXIT] != SEM_FAILED)
+		sem_post(sem[SEM_EXIT]);
+	if(shared != NULL)
+		--shared->players;
+
+	if(!isendwin())
+		endwin();
+	exit(EXIT_SUCCESS);
+}
 
 static const char* map_stage_str(int stage)
 {
@@ -47,7 +60,7 @@ static void check_shutdown(void)
 		if(shared->errorcode == EC_GAMEOVER){
 			fprintf(stderr,player_nr == shared->won ? "You won!\n" : "You lost!\n");
 		}
-		exit(EXIT_SUCCESS);
+		cleanup();
 	}
 }
 
@@ -215,6 +228,13 @@ struct Coord shoot(WINDOW *win, struct Field *gamef, int *const x, int *const y)
 	return shot;
 }
 
+static void set_surrender(int x)
+{
+	if(shared != NULL)
+		shared->surrender[player_nr-1] = 1;
+	cleanup();
+}
+
 int main(int argc, char **argv)
 {
 	struct Field gamef = {{{0}}};
@@ -226,9 +246,14 @@ int main(int argc, char **argv)
 		return EXIT_FAILURE;
 	}
 
+	if(setup_signal_handler(set_surrender) == 0)
+		bail_out("setup_signal_handler");
+
 	atexit(free_common_ressources);
 
 	const int oflag = 0;
+	sem[SEM_START] = sem_open(SEM_NAME[SEM_START], oflag);
+	sem[SEM_EXIT] = sem_open(SEM_NAME[SEM_EXIT], oflag);
 	sem[SEM_GLOBAL] = sem_open(SEM_NAME[SEM_GLOBAL], oflag);
 	sem[SEM_1] = sem_open(SEM_NAME[SEM_1], oflag);
 	sem[SEM_2] = sem_open(SEM_NAME[SEM_2], oflag);
@@ -243,10 +268,11 @@ int main(int argc, char **argv)
 	if(allocate_shared(0) == 0)
 		bail_out("allocate_shared");
 
-	(void)printf("Waiting for server...\n");
+	
+	/* requesting access and setting player number */
+	(void)printf("Connecting to server...\n");
 	do{
-		/* requesting access and setting player number */
-		sem_wait(sem[SEM_GLOBAL]);
+		sem_wait_cb(sem[SEM_START], cleanup);
 		check_shutdown();
 	}while(shared->stage != STAGE_WAIT && shared->players >= 2);
 
@@ -269,7 +295,7 @@ int main(int argc, char **argv)
 	sem_post(sem[mysem]);
 
 	/* waiting for SET stage */
-	sem_wait(sem[SEM_SYNC]);
+	sem_wait_cb(sem[SEM_SYNC],cleanup);
 	check_shutdown();
 	assert(shared->stage == STAGE_SET);
 
@@ -277,11 +303,11 @@ int main(int argc, char **argv)
 
 	draw_game_field(win, &gamef, cursor_x, cursor_y, STAGE_WAIT);
 	sem_post(sem[mysem]);
-	sem_wait(sem[SEM_GLOBAL]);
+	sem_wait_cb(sem[SEM_GLOBAL],cleanup);
 	check_shutdown();
 
 	for(;;){
-		sem_wait(sem[mysem]);
+		sem_wait_cb(sem[mysem],cleanup);
 		check_shutdown();
 
 		/* it's our turn */
@@ -289,7 +315,7 @@ int main(int argc, char **argv)
 		shared->shot = shot;
 		
 		sem_post(sem[SEM_SYNC]);
-		sem_wait(sem[mysem]);
+		sem_wait_cb(sem[mysem],cleanup);
 		check_shutdown();
 
 		/* the server tells us, if we hit, now */
@@ -302,6 +328,7 @@ int main(int argc, char **argv)
 
 	delwin(win); 
 	endwin();
+	sem_post(sem[SEM_EXIT]);
 
 	return EXIT_SUCCESS;
 }

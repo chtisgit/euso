@@ -1,6 +1,10 @@
 #ifndef _COMMON_
 #define _COMMON_
 
+#ifndef ENDEBUG
+#define NDEBUG
+#endif
+
 #include <unistd.h>
 #include <semaphore.h>
 #include <sys/types.h>
@@ -64,6 +68,7 @@ struct SharedStructure{
 	int won;	/* player number that has won */
 	struct Ship ship[2];
 	struct Coord shot;
+	int surrender[2];
 	int hit;
 };
 extern const char *SRV_MSG[EC_LAST];
@@ -74,7 +79,7 @@ extern int shm_fd;
 /* SEMAPHORES */
 
 /* don't use SEM_LAST */
-enum{ SEM_GLOBAL, SEM_1, SEM_2, SEM_SYNC, SEM_LAST };
+enum{ SEM_START, SEM_GLOBAL, SEM_1, SEM_2, SEM_SYNC, SEM_EXIT, SEM_LAST };
 
 extern const char *SEM_NAME[SEM_LAST];
 extern sem_t *sem[SEM_LAST];
@@ -82,6 +87,7 @@ extern sem_t *sem[SEM_LAST];
 int setup_signal_handler(void (*handler)(int));
 int allocate_shared(int owner);
 void free_common_ressources(void);
+void free_common_ressources_owner(void);
 void usage(void);
 int ship_check(const struct Ship *const ship);
 void bail_out(const char *s);
