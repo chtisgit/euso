@@ -45,13 +45,21 @@ static const char *STAGE_STR[] = {
 */
 static void cleanup(void)
 {
-	if(sem[SEM_EXIT] != SEM_FAILED)
-		sem_post(sem[SEM_EXIT]);
-	if(shared != NULL)
-		--shared->players;
-
 	if(!isendwin())
 		endwin();
+
+	if(mysem >= 0 && sem[mysem] != SEM_FAILED)
+		sem_post(sem[mysem]);
+
+	if(sem[SEM_EXIT] != SEM_FAILED)
+		sem_post(sem[SEM_EXIT]);
+
+	if(shared != NULL){
+		++shared->players_gone;
+		if(player_nr == 1 || player_nr == 2)
+			++shared->surrender[player_nr-1];
+	}
+
 	exit(EXIT_SUCCESS);
 }
 
@@ -308,8 +316,6 @@ static struct Coord shoot(WINDOW *win, struct Field *gamef, int *const x, int *c
 /*! sets surrender flag in shared and calls cleanup */
 static void set_surrender(int x)
 {
-	if(shared != NULL)
-		shared->surrender[player_nr-1] = 1;
 	cleanup();
 }
 

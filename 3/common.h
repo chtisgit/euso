@@ -91,6 +91,9 @@ struct SharedStructure{
 	/*! \brief number of players on the server */
 	int players;
 
+	/*! \brief number of players that left the game */
+	int players_gone;
+
 	/*! \brief player number that has won */
 	int won;
 

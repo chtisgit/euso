@@ -88,22 +88,24 @@ static int is_ship_dead(const struct Ship *const ship){
 
 /*!
 	\brief checks the surrender flags in the shared structure
+	\param errorcode
+		an error code (typically EC_GAMEOVER);
 	\return zero if the surrender flags are not set, nonzero if they are
 	\details
 		if one of the surrender flags is set, then the player, that
 		is still ingame, will win.
 		shutdown() will be called and nonzero will be returned
 */
-static int check_surrender(void)
+static int check_surrender(int errorcode)
 {
 	assert(shared != NULL);
 	if(shared->surrender[0] != 0){
-		shared->errorcode = EC_GAMEOVER;
+		shared->errorcode = errorcode;
 		shared->won = 2;
 		shutdown();
 		return 1;
 	}else if(shared->surrender[1] != 0){
-		shared->errorcode = EC_GAMEOVER;
+		shared->errorcode = errorcode;
 		shared->won = 1;
 		return 1;
 	}
@@ -122,6 +124,7 @@ static void game(void)
 {
 	shared->errorcode = EC_NONE;
 	shared->players = 0;
+	shared->players_gone = 0;
 	shared->won = 0;
 	shared->surrender[0] = shared->surrender[1] = 0;
 	shared->stage = STAGE_WAIT;
@@ -131,13 +134,16 @@ static void game(void)
 	/* waiting for the two players */
 	sem_post(sem[SEM_START]);
 	sem_wait_cb(sem[SEM_1], cleanup);
-	if(check_surrender() != 0) return;
+	if(check_surrender(EC_CLIENTDISCONNECT) != 0) return;
 
 	sem_post(sem[SEM_START]);
 	sem_wait_cb(sem[SEM_2], cleanup);
-	if(check_surrender() != 0) return;
+	if(check_surrender(EC_CLIENTDISCONNECT) != 0) return;
 
-	assert(shared->players == 2);
+	if(shared->players != 2 || shared->players_gone != 0){
+		shutdown();
+		return;
+	}
 	
 	/* now the players may position their ships */
 	
@@ -146,10 +152,10 @@ static void game(void)
 	sem_post(sem[SEM_SYNC]);
 	sem_post(sem[SEM_SYNC]);
 	sem_wait_cb(sem[SEM_1], cleanup);
-	if(check_surrender() != 0) return;
+	if(check_surrender(EC_CLIENTDISCONNECT) != 0) return;
 
 	sem_wait_cb(sem[SEM_2], cleanup);
-	if(check_surrender() != 0) return;
+	if(check_surrender(EC_CLIENTDISCONNECT) != 0) return;
 
 	if(ship_check(&shared->ship[0]) == 0 || ship_check(&shared->ship[1]) == 0){
 		cleanup();
@@ -164,7 +170,7 @@ static void game(void)
 		sem_post(sem[SEM_1]);
 		/* player 1 makes his turn (sets shared->shot)*/
 		sem_wait_cb(sem[SEM_SYNC], cleanup);
-		if(check_surrender() != 0) return;
+		if(check_surrender(EC_GAMEOVER) != 0) return;
 
 		shared->hit = has_shot_hit(&shared->ship[1]);
 		if(is_ship_dead(&shared->ship[1]) != 0){
@@ -175,13 +181,13 @@ static void game(void)
 		}
 		sem_post(sem[SEM_1]);
 		sem_wait_cb(sem[SEM_SYNC], cleanup);
-		if(check_surrender() != 0) return;
+		if(check_surrender(EC_GAMEOVER) != 0) return;
 
 		shared->stage = STAGE_TURN2;
 		sem_post(sem[SEM_2]);
 		/* player 2 makes his turn (sets shared->shot)*/
 		sem_wait_cb(sem[SEM_SYNC], cleanup);
-		if(check_surrender() != 0) return;
+		if(check_surrender(EC_GAMEOVER) != 0) return;
 
 		shared->hit = has_shot_hit(&shared->ship[0]);
 		if(is_ship_dead(&shared->ship[0]) != 0){
@@ -192,7 +198,7 @@ static void game(void)
 		}
 		sem_post(sem[SEM_2]);
 		sem_wait_cb(sem[SEM_SYNC], cleanup);
-		if(check_surrender() != 0) return;
+		if(check_surrender(EC_GAMEOVER) != 0) return;
 	}
 
 }
@@ -237,9 +243,8 @@ int main(int argc, char** argv)
 		(void)printf("Starting new game...\n");
 		game();
 		(void)printf("Game Over. Waiting for players to exit...\n");
-		sem_wait_cb(sem[SEM_EXIT], cleanup);
 
-		while(shared != NULL && shared->players > 0){
+		while(shared != NULL && shared->players_gone < 2){
 			sem_wait_cb(sem[SEM_EXIT], cleanup);
 		}
 		/* NOT free_common_ressources_owner() ! */
