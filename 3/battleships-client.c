@@ -48,17 +48,16 @@ static void cleanup(void)
 	if(!isendwin())
 		endwin();
 
-	if(mysem >= 0 && sem[mysem] != SEM_FAILED)
-		sem_post(sem[mysem]);
-
-	if(sem[SEM_EXIT] != SEM_FAILED)
-		sem_post(sem[SEM_EXIT]);
-
 	if(shared != NULL){
 		++shared->players_gone;
+		shared->stage = STAGE_SHUTDOWN;
 		if(player_nr == 1 || player_nr == 2)
 			++shared->surrender[player_nr-1];
 	}
+
+	for(int i = 0; i < LEN(sem); i++)
+		if(sem[i] != SEM_FAILED)
+			sem_post(sem[i]);
 
 	exit(EXIT_SUCCESS);
 }
