@@ -56,7 +56,7 @@ static void cleanup(void)
 	}
 
 	for(int i = 0; i < LEN(sem); i++)
-		if(sem[i] != SEM_FAILED)
+		if(i != SEM_START && sem[i] != SEM_FAILED)
 			sem_post(sem[i]);
 
 	exit(EXIT_SUCCESS);
