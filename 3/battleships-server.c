@@ -170,7 +170,7 @@ static void game(void)
 		if(is_ship_dead(&shared->ship[1]) != 0){
 			shared->errorcode = EC_GAMEOVER;
 			shared->won = 1;
-			shutdown(); 
+			shutdown();
 			return;
 		}
 		sem_post(sem[SEM_1]);
@@ -187,7 +187,7 @@ static void game(void)
 		if(is_ship_dead(&shared->ship[0]) != 0){
 			shared->errorcode = EC_GAMEOVER;
 			shared->won = 2;
-			cleanup();
+			shutdown();
 			return;
 		}
 		sem_post(sem[SEM_2]);
