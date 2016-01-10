@@ -1,3 +1,14 @@
+/*!
+	\file	battleships-client.h
+	\author	Christian Fiedler <e1363562@student.tuwien.ac.at>
+	\date	10.01.2015
+
+	\brief	battleships game client
+
+	\details
+		with this program you can play battleships
+		over a server application with another person
+*/
 #include <common.h>
 
 #include <assert.h>
@@ -24,7 +35,15 @@ static const char *STAGE_STR[] = {
 	"Server shutting down"
 };
 
-static void cleanup()
+/*! 
+	\brief this function leaves the server gracefully
+	\details
+		sem[SEM_EXIT] will be posted
+		shared->players will be decremented
+		ncurses will be stopped, if needed
+		exit is called with EXIT_SUCCESS
+*/
+static void cleanup(void)
 {
 	if(sem[SEM_EXIT] != SEM_FAILED)
 		sem_post(sem[SEM_EXIT]);
@@ -36,6 +55,16 @@ static void cleanup()
 	exit(EXIT_SUCCESS);
 }
 
+/*! 
+	\brief this function maps stage numbers to strings
+	\param stage
+		stage number (see unnamed enum #2 in struct SharedStructure)
+	\return a string corresponding to the given stage
+	\details
+		a direct mapping with STAGE_STR[stage] is not possible
+		to get the correct string, player_nr has to be taken
+		into account.
+*/
 static const char* map_stage_str(int stage)
 {
 	assert(player_nr == 1 || player_nr == 2);
@@ -50,6 +79,7 @@ static const char* map_stage_str(int stage)
 	return STAGE_STR[shared->stage];
 }
 
+/*! checks if the server was shutdown, if yes it calls cleanup*/
 static void check_shutdown(void)
 {
 	if(shared->stage == STAGE_SHUTDOWN){
@@ -67,6 +97,20 @@ static void check_shutdown(void)
 #define GFX_W	(FIELD_W*2+1+2)
 #define GFX_H	(FIELD_H+4)
 
+/*!
+	\brief this function draws the game board using ncurses
+	\param win
+		ncurses window with dimensions (GFX_W, GFX_H)
+	\param gamef
+		const pointer to game file structure
+	\param cursor_x
+		the player's cursor position on the X axis
+	\param cursor_y
+		the player's cursor position on the Y axis
+	\param stage_assume
+		the stage that is assumed to be the current one
+		if negative, the function will use shared->stage instead.
+*/
 static void draw_game_field(WINDOW *win, const struct Field *const gamef, int cursor_x, int cursor_y, int stage_assume)
 {
 	int x, y;
@@ -110,6 +154,18 @@ static void draw_game_field(WINDOW *win, const struct Field *const gamef, int cu
 	(void)move(0,0);
 }
 
+/*!
+	\brief builds a Ship data structure from a Field data structure
+	\param gamef
+		a const pointer to the game field (struct Field) where
+		the ship has been positioned
+	\return
+		nonzero on success, zero otherwise
+	\details
+		if the functions succeeds, the corresponding ship data structure
+		in the shared data structure (shared->ship[player_nr-1])
+		will be set to correct values
+*/
 static int build_ship(const struct Field *const gamef)
 {
 	struct Ship *const myship = &shared->ship[player_nr-1];
@@ -129,6 +185,11 @@ static int build_ship(const struct Field *const gamef)
 	return ship_check(myship);
 }
 
+/*!
+	\brief this function lets the player position his/her ship
+	\param win
+		ncurses window with dimensions (GFX_W, GFX_H)
+*/
 static void set_ship(WINDOW *win)
 {
 	struct Field gamef = {{{0}}};
@@ -184,7 +245,23 @@ static void set_ship(WINDOW *win)
 }
 
 
-struct Coord shoot(WINDOW *win, struct Field *gamef, int *const x, int *const y)
+/*!
+	\brief this function lets the player shoot at a position
+	\param win
+		ncurses window with dimensions (GFX_W, GFX_H)
+	\param gamef
+		Field data structure (game field)
+	\param x
+		the player's cursor position on the X axis
+	\param y
+		the player's cursor position on the Y axis
+	\return
+		a Coord struct (by value!) with the shot coordinates
+	\details
+		the function will not return until the player
+		selected a position, that he didn't shoot at, yet.
+*/
+static struct Coord shoot(WINDOW *win, struct Field *gamef, int *const x, int *const y)
 {
 	struct Coord shot;
 	int space = 0;
@@ -228,6 +305,7 @@ struct Coord shoot(WINDOW *win, struct Field *gamef, int *const x, int *const y)
 	return shot;
 }
 
+/*! sets surrender flag in shared and calls cleanup */
 static void set_surrender(int x)
 {
 	if(shared != NULL)
@@ -235,6 +313,7 @@ static void set_surrender(int x)
 	cleanup();
 }
 
+/*! \brief does everything */
 int main(int argc, char **argv)
 {
 	struct Field gamef = {{{0}}};
@@ -330,5 +409,5 @@ int main(int argc, char **argv)
 	endwin();
 	sem_post(sem[SEM_EXIT]);
 
-	return EXIT_SUCCESS;
+	cleanup();
 }

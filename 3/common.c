@@ -1,3 +1,17 @@
+/*!
+	\file	common.c
+	\author	Christian Fiedler <e1363562@student.tuwien.ac.at>
+	\date	10.01.2015
+
+	\brief	battleships common code
+
+	\details
+		this is code, that both the server and
+		the client application of the battleships
+		project use.
+		
+*/
+
 #include <common.h>
 
 #include <assert.h>
@@ -8,6 +22,7 @@
 #include <errno.h>
 
 sig_atomic_t exitsig = 0;
+
 const char *progname = NULL;
 
 int shm_fd = -1;
@@ -152,8 +167,10 @@ int ship_check(const struct Ship *const ship)
 	return 0;
 }
 
+/*! \brief see setup_signal_handler */
 static void (*signal_handler_cb)(int);
 
+/*! \brief see setup_signal_handler */
 static void minimal_handler(int signr){
 	exitsig = 1;
 	if(signal_handler_cb != NULL)
@@ -175,6 +192,15 @@ int setup_signal_handler(void (*handler)(int))
 	return sigaction(SIGINT, &sa, NULL) == -1 || sigaction(SIGTERM, &sa, NULL) == -1 ? 0 : 1;
 }
 
+/*!
+	\brief frees the sem[] array
+	\param owner
+		if owner is nonzero, further deinitialization (sem_unlink)
+		is performed
+	\details
+		Every element of sem[] will be SEM_FAILED after this function
+		is called. If owner is nonzero, the semaphores will be unlinked
+*/
 static void free_semaphores(int owner)
 {
 	int i;
@@ -188,6 +214,15 @@ static void free_semaphores(int owner)
 	}
 }
 
+/*!
+	\brief frees the shared memory
+	\param owner
+		if owner is nonzero, further deinitialization (shm_unlink)
+		is performed
+	\details
+		shared will be set to NULL after this call, if shm_fd was 
+		not -1.
+*/
 static void free_shared(int owner)
 {
 	if(shm_fd != -1){

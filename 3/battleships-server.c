@@ -1,3 +1,16 @@
+/*!
+	\file	battleships-server.c
+	\author	Christian Fiedler <e1363562@student.tuwien.ac.at>
+	\date	10.01.2015
+
+	\brief	battleships game server
+
+	\details
+		with this program two players can play
+		battleships over shared memory, yay!
+		
+*/
+
 #include <common.h>
 
 #include <assert.h>
@@ -6,7 +19,13 @@
 #include <unistd.h>
 #include <sys/types.h>
 
-
+/*!
+	\brief shuts down the server
+	\details
+		shared->errorcode will be set to a valid and appropriate value
+		shared->stage will be set to STAGE_SHUTDOWN
+		all semaphores that may block clients will be posted to
+*/
 void shutdown(void)
 {
 	if(shared->errorcode == EC_NONE){
@@ -24,12 +43,20 @@ void shutdown(void)
 	sem_post(sem[SEM_SYNC]);
 }
 
+/*! \brief calls shutdown() and then exit with EXIT_SUCCESS */
 void cleanup(void)
 {
 	shutdown();
 	exit(EXIT_SUCCESS);
 }
 
+/*!
+	\brief checks if the given ship is dead
+	\param ship
+		a const pointer to the given ship
+	\return
+		zero if it is alive, nonzero if it is dead
+*/
 static int has_shot_hit(struct Ship *const ship)
 {
 	int i;
@@ -43,6 +70,13 @@ static int has_shot_hit(struct Ship *const ship)
 	return 0;
 }
 
+/*!
+	\brief checks if the given ship is dead
+	\param ship
+		a const pointer to the given ship
+	\return
+		zero if it is alive, nonzero if it is dead
+*/
 static int is_ship_dead(const struct Ship *const ship){
 	int i;
 	for(i = 0; i < SHIP_COORDS; i++){
@@ -52,7 +86,15 @@ static int is_ship_dead(const struct Ship *const ship){
 	return 1;
 }
 
-int check_surrender(void)
+/*!
+	\brief checks the surrender flags in the shared structure
+	\return zero if the surrender flags are not set, nonzero if they are
+	\details
+		if one of the surrender flags is set, then the player, that
+		is still ingame, will win.
+		shutdown() will be called and nonzero will be returned
+*/
+static int check_surrender(void)
 {
 	assert(shared != NULL);
 	if(shared->surrender[0] != 0){
@@ -68,7 +110,15 @@ int check_surrender(void)
 	return 0;
 }
 
-void game(void)
+/*!
+	\brief this function initializes and plays the game with the clients
+	\details
+		the function returns :
+		- if the game is over,
+		- if the server is shut down, or
+		- if a player left
+*/
+static void game(void)
 {
 	shared->errorcode = EC_NONE;
 	shared->players = 0;
@@ -147,6 +197,7 @@ void game(void)
 
 }
 
+/*! \brief does everything */
 int main(int argc, char** argv)
 {
 	progname = argv[0];
