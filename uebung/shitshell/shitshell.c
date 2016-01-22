@@ -44,7 +44,7 @@ char** build_array(const char *s, const char **s_out)
 			buf[buf_len++] = '\0';
 
 			if(arr_len == arr_cap-1){
-				void *n = realloc(buf, (arr_cap += 8) * sizeof(*arr));
+				void *n = realloc(arr, (arr_cap += 8) * sizeof(*arr));
 				if(n == NULL)
 					goto fail;
 				arr = n;
@@ -75,13 +75,16 @@ void delete_array(char **arr)
 int run(int lev, const char *s)
 {
 	char **arr = build_array(s, &s);
-	int in[2];
+	int status, in[2];
 	pipe(in);
 
 	pid_t p = fork();
 
-	if(p < 0)
+	if(p < 0){
+		fprintf(stderr, "error!");
 		return 0;
+	}
+
 	if(p == 0){
 		close(in[0]);
 		if(*s == '|'){
@@ -100,15 +103,13 @@ int run(int lev, const char *s)
 		if(*s == '|' && lev > 0)
 			dup2(in[0], fileno(stdout));
 
-
-		int status;
 		wait(&status);
 		close(in[0]);
 	}
 
 	delete_array(arr);
 
-	return 1;
+	return status;
 }
 
 
@@ -122,6 +123,7 @@ int main(int argc, char **argv)
 {
 	char line[LINE_MAX];
 	char *valid;
+	int status = 0;
 
 	do{
 		printf("$hit$shell $ ");
@@ -129,9 +131,16 @@ int main(int argc, char **argv)
 		
 		valid = fgets(line, LINE_MAX, stdin);
 
-		if(line != NULL){
+		if(line[0] != '\0'){
 			cut_newline(line);
-			run(0, line);
+			pid_t p = fork();
+			if(p < 0){
+				fprintf(stderr, "error!\n");
+			}else if(p == 0){
+				exit(run(0, line));
+			}else{
+				wait(&status);
+			}
 		}
 		
 	}while(valid != NULL);
