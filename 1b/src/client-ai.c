@@ -36,7 +36,7 @@ inline const int calc_all_size(void)
 int ai_init(void)
 {
 	all_size = calc_all_size();
-	all = calloc( sizeof(*all), all_size );
+	all = calloc( all_size, sizeof(*all) );
 	if(all == NULL)
 		return 0;
 	return 1;
